@@ -1,0 +1,234 @@
+// SPDX-License-Identifier: MIT
+
+pragma solidity ^0.8.0;
+
+/**
+ * @dev Interface of the ERC20 standard as defined in the EIP.
+ */
+interface IERC20 {
+    /**
+     * @dev Returns the amount of tokens in existence.
+     */
+    function totalSupply() external view returns (uint256);
+
+    /**
+     * @dev Returns the amount of tokens owned by `account`.
+     */
+    function balanceOf(address account) external view returns (uint256);
+
+    /**
+     * @dev Moves `amount` tokens from the caller's account to `recipient`.
+     *
+     * Returns a boolean value indicating whether the operation succeeded.
+     *
+     * Emits a {Transfer} event.
+     */
+    function transfer(address recipient, uint256 amount) external returns (bool);
+
+    /**
+     * @dev Returns the remaining number of tokens that `spender` will be
+     * allowed to spend on behalf of `owner` through {transferFrom}. This is
+     * zero by default.
+     *
+     * This value changes when {approve} or {transferFrom} are called.
+     */
+    function allowance(address owner, address spender) external view returns (uint256);
+
+    /**
+     * @dev Sets `amount` as the allowance of `spender` over the caller's tokens.
+     *
+     * Returns a boolean value indicating whether the operation succeeded.
+     *
+     * IMPORTANT: Beware that changing an allowance with this method brings the risk
+     * that someone may use both the old and the new allowance by unfortunate
+     * transaction ordering. One possible solution to mitigate this race
+     * condition is to first reduce the spender's allowance to 0 and set the
+     * desired value afterwards:
+     * https://github.com/ethereum/EIPs/issues/20#issuecomment-263524729
+     *
+     * Emits an {Approval} event.
+     */
+    function approve(address spender, uint256 amount) external returns (bool);
+
+    /**
+     * @dev Moves `amount` tokens from `sender` to `recipient` using the
+     * allowance mechanism. `amount` is then deducted from the caller's
+     * allowance.
+     *
+     * Returns a boolean value indicating whether the operation succeeded.
+     *
+     * Emits a {Transfer} event.
+     */
+    function transferFrom( address sender, address recipient, uint256 amount) external returns (bool);
+
+    /**
+     * @dev Emitted when `value` tokens are moved from one account (`from`) to
+     * another (`to`).
+     *
+     * Note that `value` may be zero.
+     */
+    event Transfer(address indexed from, address indexed to, uint256 value);
+
+    /**
+     * @dev Emitted when the allowance of a `spender` for an `owner` is set by
+     * a call to {approve}. `value` is the new allowance.
+     */
+    event Approval(address indexed owner, address indexed spender, uint256 value);
+}
+
+contract tokenERC20 is IERC20 {
+    
+    
+     //mapping to hold balances against EOA accounts
+    mapping (address => uint256) private _balance;
+    
+     //mapping to hold approved allowance of token to certain address
+    mapping (address => mapping (address => uint256)) private _allowances; 
+    
+    uint256 private _totalSupply;
+    string public symbols;
+    string public name;
+    uint8 public decimals;
+    address owner;
+    uint256  public tokenCap;
+    
+    // To check whether the given address is the owner's address or not.
+    
+     modifier ownerOnly() {
+        if(msg.sender == owner) {
+            _;
+        }
+        
+    }
+    
+    constructor ()  {
+        name = "BCC TOKEN";
+        symbols = "BCC";
+        decimals = 18;
+        owner = msg.sender; 
+        tokenCap = _totalSupply*5;
+        
+        // total tokens to be generated.
+        _totalSupply = 1000*10**decimals;
+        
+        // total supply transfer to owner.
+        _balance[owner] = _totalSupply;
+    }
+    
+    function totalSupply() public virtual view override returns (uint256) {
+        return _totalSupply;
+    }
+    
+    function balanceOf(address account) public virtual view override returns (uint256) {
+        return _balance[account];
+    }
+
+    function transfer(address recipient, uint256 amount) public virtual override returns (bool) {
+       address sender = msg.sender;
+        require (sender != address(0), "transfer from the 0 address");
+        require(recipient != address(0), "transfer to the 0 address");
+        require(_balance[sender] >amount, "sender must have the balance of at least amount");
+        
+        // decreases the sender's account balance
+        _balance[sender] = _balance[sender] - amount;
+        
+        // increases the recipient's account balance.
+        _balance[recipient] = _balance[recipient] + amount;
+        
+        emit Transfer(sender, recipient, amount);
+        return true;
+    }
+    
+    function allowance(address _owner, address spender) public virtual view override returns (uint256) {
+      return _allowances[_owner][spender];
+    }  
+    
+    function approve(address spender, uint256 amount) public virtual override returns (bool) {
+        address _owner = msg.sender;
+        require (owner != address(0), "approve from the 0 address");
+        require(spender != address(0), "approve to the 0 address");
+        
+        _allowances[spender][_owner] = amount;
+        
+        emit Approval(owner, spender, amount);
+        return true;
+    }
+
+    function transferFrom( address sender, address recipient, uint256 amount) public virtual override returns (bool) {
+         address spender = msg.sender;
+         uint256 _allowance = _allowances[owner][spender];
+         require(_allowance > amount, "transfer amount exceed allowance");
+         
+         //allowance decreases
+         _allowance = _allowance - amount;
+         
+          //owner's balance decreases
+        _balance[sender] =_balance[sender] - amount; 
+        
+        //transfer token to recipient;
+        _balance[recipient] = _balance[recipient] + amount;
+        
+        emit Transfer(spender, recipient, amount);
+        
+        
+        //decrease the approval amount;
+        _allowances[owner][spender] = _allowance;
+         
+          emit Approval(owner, spender, amount);
+        
+        return true;
+    }
+    
+    // Assignment :3A)   1) Anyone can get the tokens by paying against ethers.
+    
+    uint tokenPrice = 1 ether;
+    
+    function buyTokens() public payable returns(bool) {
+        uint tokenQuantity = msg.value; 
+        _balance[owner] = _balance[owner] - tokenQuantity;
+        _balance[msg.sender] = _balance[msg.sender] + tokenQuantity;
+        return true;
+    }
+       
+      // 2) Add fallback payable method to Issue token based on Ether received. Say 1 Ether = 100 tokens.  
+    
+      receive() payable external 
+      {
+         buyTokens();
+      }
+    
+     // 3) There should be an additional method to adjust the price that allows the owner to adjust the price.
+
+    function setPrice(uint newPrice) public ownerOnly returns(uint) {
+       tokenPrice = newPrice;
+       return(tokenPrice);
+    }
+    
+    // Assignment :3B)   1) Capped Token: The minting token should not be exceeded from the Capped limit.
+    
+    function mint(uint256 value) public ownerOnly returns(bool) {
+        
+        require(msg.sender!= address(0));
+        require(_totalSupply + value <= tokenCap);
+        _totalSupply = _totalSupply + value;
+        _balance[msg.sender] = _balance[msg.sender] + value;
+        emit Transfer(address(0),msg.sender,value);
+        return true;
+        
+    }
+    
+    // 2) TimeBound Token: The token will not be transferred until the given time exceed. For example Wages payment will be due after 30 days.
+
+    uint public duration = 2 minutes;
+    uint releaseTime = block.timestamp + duration;
+    
+    function transferTimeBoundTokens(address receiver, uint value) external returns(bool) {
+      
+       require(block.timestamp >= releaseTime, "please wait!");
+       require(value <= _balance[msg.sender], "you don't have enough tokens to transfer");
+       _balance[msg.sender] = _balance[msg.sender] - value;
+       _balance[receiver] = _balance[receiver] + value;
+       emit Transfer(msg.sender, receiver,value);
+       return true;
+    }
+}
